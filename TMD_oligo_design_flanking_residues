@@ -1,0 +1,75 @@
+# code written by : Elena Ivanova
+# Lab : Khemlinskii, Institute of Molecular Biology
+# Project: Creating TMD oligo pool
+
+setwd("U:/Yeast TA list/TA oligo pool/oligo_design_20191022")
+
+mydir = "U:/Yeast TA list/TA oligo pool/oligo_design_20191022"
+
+#load packages
+library("dplyr")
+library("stringi")
+library("htmltab")
+library("XML")
+library("ggplot2")
+
+#read in starting table
+TAset <- read.csv("oligo design.csv", header=TRUE) 
+
+#calculate TMD sequence, it's length and DNA coordinates
+TAset$TMDseq <- substr(TAset$Sequence, TAset$Phobius_start, TAset$Phobius_end)
+TAset$TMDlength <-stri_length(TAset$TMDseq)
+TAset$DNA_TMDstart <- TAset$Phobius_start*3 - 2
+TAset$DNA_TMDend <- TAset$Phobius_end*3
+
+
+#####
+#make_fusions function to create oligos
+#takes as input
+#       df table with TA proteins, their TMD sequences and coordinates
+#       up_TMD_extension is number of aminoacids to include before TMD
+#       down_TMD_extension is number of aminoacids to include after TMD
+#       stopseq (DNA sequence) to include right after the left homology arm
+#####
+make_fusions <- function(df, x = up_TMD_extension, y = down_TMD_extension, z = stopseq) {
+  
+  df$TMDseq_ext <- substr(df$DNA_Sequence, df$DNA_TMDstart - x*3, df$DNA_TMDend + y*3)
+  df$TMDseq_ext_length <-stri_length(df$TMDseq_ext)
+  
+  df$oligo <- paste(df$LHA, z, df$TMDseq_ext, df$RHA, sep = "", collapse = NULL) # create combinations of LHA_truncared (stopseq) ext-Phobius_TMD-ext STOP RHA_truncated
+  
+  df$oligo_length <-stri_length(df$oligo) # calculate length of final oligo
+  
+  fusions_name <- paste0("TAvariants", "_", x, "_", y, "_", z, sep="", collapse = NULL)
+  df$subset <- fusions_name
+  
+  return(df)
+  
+}
+
+
+#oligos without stopseq
+TAvariants_1_1_0 <- make_fusions(TAset, 1, 1, "")
+TAvariants_1_5_0 <- make_fusions(TAset, 1, 5, "")
+TAvariants_5_1_0 <- make_fusions(TAset, 5, 1, "")
+TAvariants_5_5_0 <- make_fusions(TAset, 5, 5, "")
+
+
+#oligos with stopseq = GGPG
+TAvariants_1_1_GGPG <- make_fusions(TAset, 1, 1, "ggtggaccaggt")
+TAvariants_1_5_GGPG <- make_fusions(TAset, 1, 5, "ggtggaccaggt")
+TAvariants_5_1_GGPG <- make_fusions(TAset, 5, 1, "ggtggaccaggt")
+TAvariants_5_5_GGPG <- make_fusions(TAset, 5, 5, "ggtggaccaggt")
+
+
+#combined oligo pool
+TA_oligo_pool <- bind_rows(TAvariants_1_1_0,
+                        TAvariants_1_5_0,
+                        TAvariants_5_1_0,
+                        TAvariants_5_5_0,
+                        TAvariants_1_1_GGPG,
+                        TAvariants_1_5_GGPG,
+                        TAvariants_5_1_GGPG,
+                        TAvariants_5_5_GGPG)
+
+write.csv(select(TA_oligo_pool, ORF, Name, oligo, oligo_length, subset), "TA_oligo_pool.csv")
